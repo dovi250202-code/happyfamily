@@ -262,7 +262,6 @@ HTML_TEMPLATE = r"""
   }
   .dish-box:hover{ border-color:var(--accent); background:#fff3e8; }
   .dish-box.empty{ color:var(--muted); font-style:italic; border-style:dashed; }
-  .dish-box .sticker{ font-size:20px; }
   .dish-meta{ font-size:11px; color:var(--muted); margin-top:5px; line-height:1.5; }
   .dish-meta b{ color:#8a6a4f; }
   .dish-actions{ display:flex; gap:10px; margin-top:6px; }
@@ -335,14 +334,7 @@ const WEEKDAY_NAMES = {{ weekday_names | tojson }};
 const MEALS = {{ meals | tojson }};
 const DAY_EMOJI = {{ day_emoji | tojson }};
 const MEAL_EMOJI = {{ meal_emoji | tojson }};
-const STICKERS = {{ stickers | tojson }};
 const DAY_COLORS = ["#ff8c66","#ffb84d","#ffd166","#34a373","#4fb3a9","#5b8def","#b388eb"];
-
-function stickerFor(dish){
-  let sum = 0;
-  for (let i=0;i<dish.length;i++) sum += dish.charCodeAt(i);
-  return STICKERS[sum % STICKERS.length];
-}
 
 function startOfDay(d){ const x = new Date(d); x.setHours(0,0,0,0); return x; }
 function getMonday(d){
@@ -487,8 +479,18 @@ function renderBlock(dateStr, meal){
     input.value = entry ? entry.dish : "";
     const btn = document.createElement("button");
     btn.textContent = "Lưu";
-    btn.onclick = () => saveDish(dateStr, meal, input.value);
-    input.addEventListener("keydown", e => { if(e.key === "Enter") saveDish(dateStr, meal, input.value); });
+    // dùng mousedown (bắn ra trước blur) để bấm Lưu không bị huỷ bởi việc mất focus
+    btn.addEventListener("mousedown", (e) => { e.preventDefault(); saveDish(dateStr, meal, input.value); });
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") saveDish(dateStr, meal, input.value);
+      if (e.key === "Escape") { editingKey = null; renderBlock(dateStr, meal); }
+    });
+    // click ra ngoài ô đang sửa (không phải nút Lưu) -> tự huỷ, không lưu
+    input.addEventListener("blur", () => {
+      setTimeout(() => {
+        if (editingKey === key) { editingKey = null; renderBlock(dateStr, meal); }
+      }, 150);
+    });
     row.appendChild(input);
     row.appendChild(btn);
     block.appendChild(row);
@@ -499,10 +501,6 @@ function renderBlock(dateStr, meal){
   const box = document.createElement("div");
   box.className = "dish-box" + (entry ? "" : " empty");
   if (entry){
-    const stickerSpan = document.createElement("span");
-    stickerSpan.className = "sticker";
-    stickerSpan.textContent = stickerFor(entry.dish);
-    box.appendChild(stickerSpan);
     const textSpan = document.createElement("span");
     textSpan.textContent = entry.dish;
     box.appendChild(textSpan);
